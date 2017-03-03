@@ -26,8 +26,8 @@ if __name__ == '__main__':
     # (0) Basic configs
     parBatchSize = 64
     parOptimizer = 'adam'
-    fidxTrn = '/mnt/data1T2/datasets2/kaggle_Bowl_2017/tmp/data_nii/idx.txt-train.txt'
-    fidxVal = '/mnt/data1T2/datasets2/kaggle_Bowl_2017/tmp/data_nii/idx.txt-val.txt'
+    fidxTrn = '../data/01_nodules_classification/idx.txt-train.txt'
+    fidxVal = '../data/01_nodules_classification/idx.txt-val.txt'
     wdir = os.path.dirname(fidxTrn)
     parModelType = 'SimpleCNN3D'
     # (1) Load data into Batchers

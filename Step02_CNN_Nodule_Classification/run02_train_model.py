@@ -31,8 +31,8 @@ if __name__ == '__main__':
         parNumEpoch  = 30
         parBatchSize = 128
         parOptimizer = 'adam'
-        fidxTrn = '/mnt/data1T2/datasets2/kaggle_Bowl_2017/tmp/data_nii/idx.txt-train.txt'
-        fidxVal = '/mnt/data1T2/datasets2/kaggle_Bowl_2017/tmp/data_nii/idx.txt-val.txt'
+        fidxTrn = '../data/01_nodules_classification/idx.txt-train.txt'
+        fidxVal = '../data/01_nodules_classification/idx.txt-val.txt'
     # (0) Basic configs
     parModelType = 'SimpleCNN3D'
     parBatchSizeTrn = parBatchSize
