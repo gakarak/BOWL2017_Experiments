@@ -35,7 +35,8 @@ def resizeNii(pathNii, newSize=(33, 33, 33)):
 if __name__ == '__main__':
     # wdir = '/mnt/data1T2/datasets2/kaggle_Bowl_2017/tmp/_data_2/_ones'
     # lstPath = sorted(glob.glob('%s/*.hdr' % wdir))
-    fidx = '/mnt/data1T2/datasets2/kaggle_Bowl_2017/tmp/_data_2/idx.txt'
+    # fidx = '/mnt/data1T2/datasets2/kaggle_Bowl_2017/tmp/_data_2/idx.txt'
+    fidx = '/Users/alexanderkalinovsky/data/Lab225/kaggle_DSB_2017_ar/original/rois_three_classes/idx.txt'
     with open(fidx, 'r') as f:
         lstPath = sorted(f.read().splitlines())
     numPath = len(lstPath)
