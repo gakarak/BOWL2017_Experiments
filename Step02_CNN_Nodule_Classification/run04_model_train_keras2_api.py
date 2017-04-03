@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 import skimage.io as skio
 
 import keras
+import keras.backend as K
+import keras.optimizers as kopt
 import keras.callbacks as kall
 from keras.utils.vis_utils import plot_model
 from keras.layers import Input, Conv3D, Flatten, Activation, MaxPooling3D, Dense
@@ -77,7 +79,7 @@ def loadTrainData(pathIdx, pathMean=None, isRemoveMean=True):
     arrPath = np.array([os.path.join(wdir, xx) for xx in lstPath])
     if pathMean is None:
         pathMean = '%s-%s' % (pathIdx, pathMean)
-    meanInfo = buildMeanData(arrPath.tolist(), pathMean, isDebug=False)
+    meanInfo = buildMeanData(arrPath.copy().tolist(), pathMean, isDebug=False)
     meanVal = meanInfo['meanVal']
     meanStd = meanInfo['meanStd']
     retX = None
@@ -93,7 +95,10 @@ def loadTrainData(pathIdx, pathMean=None, isRemoveMean=True):
         if isRemoveMean:
             timg -= meanVal
             timg /= meanStd
-        timg = timg.reshape(list(timg.shape) + [1])
+        if K.image_data_format()=='channels_first':
+            timg = timg.reshape([1] + list(timg.shape))
+        else:
+            timg = timg.reshape(list(timg.shape) + [1])
         if retX is None:
             retX = np.zeros([numData] + list(timg.shape))
         retX[ii] = timg
@@ -108,15 +113,15 @@ def buildModel_SimpleCNN3D(inpShape=(64, 64, 64, 1), numCls=2, sizFlt=3, numHidd
     # Conv1
     kernelSize = (sizFlt, sizFlt, sizFlt)
     x = Conv3D(filters=16, kernel_size=kernelSize, padding='same', activation='relu')(dataInput)
-    x = Conv3D(filters=16, kernel_size=kernelSize, padding='same', activation='relu')(x)
+    # x = Conv3D(filters=16, kernel_size=kernelSize, padding='same', activation='relu')(x)
     x = MaxPooling3D(pool_size=(2, 2, 2))(x)
     # Conv2
     x = Conv3D(filters=32, kernel_size=kernelSize, padding='same', activation='relu')(x)
-    x = Conv3D(filters=32, kernel_size=kernelSize, padding='same', activation='relu')(x)
+    # x = Conv3D(filters=32, kernel_size=kernelSize, padding='same', activation='relu')(x)
     x = MaxPooling3D(pool_size=(2, 2, 2))(x)
     # Conv3
     x = Conv3D(filters=64, kernel_size=kernelSize, padding='same', activation='relu')(x)
-    x = Conv3D(filters=64, kernel_size=kernelSize, padding='same', activation='relu')(x)
+    # x = Conv3D(filters=64, kernel_size=kernelSize, padding='same', activation='relu')(x)
     x = MaxPooling3D(pool_size=(2, 2, 2))(x)
     #
     # Dense1 (hidden)
@@ -154,22 +159,29 @@ def train_generator(dataX, dataY, batchSize=32, isRandomize=False, meanShift=0.1
 
 #####################################################
 if __name__ == '__main__':
-    pathIdxTrn = '/Users/alexanderkalinovsky/data/Lab225/kaggle_DSB_2017_ar/rois_three_classes/idx-trn.txt'
-    pathIdxVal = '/Users/alexanderkalinovsky/data/Lab225/kaggle_DSB_2017_ar/rois_three_classes/idx-val.txt'
+    # pathIdxTrn = '/Users/alexanderkalinovsky/data/Lab225/kaggle_DSB_2017_ar/rois_three_classes/idx-trn.txt'
+    # pathIdxVal = '/Users/alexanderkalinovsky/data/Lab225/kaggle_DSB_2017_ar/rois_three_classes/idx-val.txt'
+    pathIdxTrn = '/home/ar/datasets/kaggle_DSB_2017_ar/idx-trn.txt'
+    pathIdxVal = '/home/ar/datasets/kaggle_DSB_2017_ar/idx-val.txt'
     pathMean = '%s-%s' % (pathIdxTrn, prefMean)
     pathModel = 'model_cnn_ct3d.h5'
     pathModelPlot = '%s-plot.png' % pathModel
     pathLog = '%s-log.csv' % pathModel
     #
-    trnX, trnY = loadTrainData(pathIdxTrn, pathMean=pathMean, isRemoveMean=True)
-    valX, valY = loadTrainData(pathIdxVal, pathMean=pathMean, isRemoveMean=True)
+    trnX, trnY = loadTrainData(pathIdxTrn, pathMean=pathMean, isRemoveMean=False)
+    valX, valY = loadTrainData(pathIdxVal, pathMean=pathMean, isRemoveMean=False)
     numCls = trnY.shape[-1]
-    numTrn = trnY.shape[0]
+    numTrn = trnY.shape[ 0]
     #
     if not os.path.isfile(pathModel):
-        model = buildModel_SimpleCNN3D(inpShape=valX.shape[1:], numCls=numCls)
-        model.compile(optimizer='adam',
+        model = buildModel_SimpleCNN3D(inpShape=valX.shape[1:],
+                                       numCls=numCls,
+                                       numHiddenDense=-1)
+        # popt = kopt.Adam(lr=0.00001)
+        popt = 'adam'
+        model.compile(optimizer=popt,
                       loss='categorical_crossentropy',
+                      # loss='binary_crossentropy',
                       metrics=['accuracy'])
     else:
         pathModelBk = '%s-%s.bk' % (pathModel, time.strftime('%Y.%m.%d-%H.%M.%S'))
@@ -179,14 +191,15 @@ if __name__ == '__main__':
     # plt.imshow(skio.imread(pathModelPlot))
     # plt.show()
     model.summary()
-    batchSize = 16
+    batchSize = 8
     numEpochs = 100
     numIterPerEpoch = numTrn/(numCls*batchSize)
-    model.fit_generator(
-        generator=train_generator(dataX=trnX, dataY=trnY, batchSize=16, isRandomize=False),
-        steps_per_epoch=numIterPerEpoch,
-        epochs=numEpochs, validation_data=(valX, valY),
-        callbacks=[
-            kall.ModelCheckpoint(pathModel, verbose=True, save_best_only=True),
-            kall.CSVLogger(pathLog, append=True)
-        ])
+    model.fit(trnX, trnY, epochs=10, validation_data=(valX, valY))
+    # model.fit_generator(
+    #     generator=train_generator(dataX=trnX, dataY=trnY, batchSize=16, isRandomize=False),
+    #     steps_per_epoch=numIterPerEpoch,
+    #     epochs=numEpochs, validation_data=(valX, valY),
+    #     callbacks=[
+    #         kall.ModelCheckpoint(pathModel, verbose=True, save_best_only=True),
+    #         kall.CSVLogger(pathLog, append=True)
+    #     ])
