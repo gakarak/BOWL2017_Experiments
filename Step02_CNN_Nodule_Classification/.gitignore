@@ -1,2 +1,5 @@
 *.h5-plot.png
 *.h5-log.csv
+/.ipynb_checkpoints/
+*.h5
+*.h5-2017.04.03-20.13.11.bk

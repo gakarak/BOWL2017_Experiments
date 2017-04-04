@@ -17,8 +17,8 @@ import keras
 import keras.backend as K
 import keras.optimizers as kopt
 import keras.callbacks as kall
-from keras.utils.vis_utils import plot_model
-from keras.layers import Input, Conv3D, Flatten, Activation, MaxPooling3D, Dense
+from keras.utils.visualize_util import plot as plot_model
+from keras.layers import Input, Flatten, Activation, MaxPooling3D, Dense, Convolution3D
 from keras.models import Model
 from keras.utils import np_utils
 
@@ -83,7 +83,7 @@ def loadTrainData(pathIdx, pathMean=None, isRemoveMean=True):
     meanVal = meanInfo['meanVal']
     meanStd = meanInfo['meanStd']
     retX = None
-    retY = np_utils.to_categorical(arrLbl, num_classes=numLbl)
+    retY = np_utils.to_categorical(arrLbl, nb_classes=numLbl)
     numData = len(arrPath)
     numSplit = 7
     numStep = numData/numSplit
@@ -95,7 +95,7 @@ def loadTrainData(pathIdx, pathMean=None, isRemoveMean=True):
         if isRemoveMean:
             timg -= meanVal
             timg /= 3.*meanStd
-        if K.image_data_format()=='channels_first':
+        if K.image_dim_ordering()=='th':
             timg = timg.reshape([1] + list(timg.shape))
         else:
             timg = timg.reshape(list(timg.shape) + [1])
@@ -112,24 +112,36 @@ def buildModel_SimpleCNN3D(inpShape=(64, 64, 64, 1), numCls=2, sizFlt=3, numHidd
     # -------- Encoder --------
     # Conv1
     kernelSize = (sizFlt, sizFlt, sizFlt)
-    x = Conv3D(filters=16, kernel_size=kernelSize, padding='same', activation='relu')(dataInput)
-    # x = Conv3D(filters=16, kernel_size=kernelSize, padding='same', activation='relu')(x)
+    x = Convolution3D(nb_filter=16,
+                      kernel_dim1=sizFlt, kernel_dim2=sizFlt, kernel_dim3=sizFlt,
+                      border_mode='same', activation='relu')(dataInput)
+    x = Convolution3D(nb_filter=16,
+                      kernel_dim1=sizFlt, kernel_dim2=sizFlt, kernel_dim3=sizFlt,
+                      border_mode='same', activation='relu')(dataInput)
     x = MaxPooling3D(pool_size=(2, 2, 2))(x)
     # Conv2
-    x = Conv3D(filters=32, kernel_size=kernelSize, padding='same', activation='relu')(x)
-    # x = Conv3D(filters=32, kernel_size=kernelSize, padding='same', activation='relu')(x)
+    x = Convolution3D(nb_filter=32,
+                      kernel_dim1=sizFlt, kernel_dim2=sizFlt, kernel_dim3=sizFlt,
+                      border_mode='same', activation='relu')(x)
+    x = Convolution3D(nb_filter=32,
+                      kernel_dim1=sizFlt, kernel_dim2=sizFlt, kernel_dim3=sizFlt,
+                      border_mode='same', activation='relu')(x)
     x = MaxPooling3D(pool_size=(2, 2, 2))(x)
     # Conv3
-    x = Conv3D(filters=64, kernel_size=kernelSize, padding='same', activation='relu')(x)
-    # x = Conv3D(filters=64, kernel_size=kernelSize, padding='same', activation='relu')(x)
+    x = Convolution3D(nb_filter=32,
+                      kernel_dim1=sizFlt, kernel_dim2=sizFlt, kernel_dim3=sizFlt,
+                      border_mode='same', activation='relu')(x)
+    x = Convolution3D(nb_filter=32,
+                      kernel_dim1=sizFlt, kernel_dim2=sizFlt, kernel_dim3=sizFlt,
+                      border_mode='same', activation='relu')(x)
     x = MaxPooling3D(pool_size=(2, 2, 2))(x)
     #
     # Dense1 (hidden)
     x = Flatten()(x)
     if numHiddenDense>0:
-        x = Dense(units=numHiddenDense, activation='relu')(x)
+        x = Dense(output_dim=numHiddenDense, activation='relu')(x)
     # Dense2
-    x = Dense(units=numCls, activation='softmax')(x)
+    x = Dense(output_dim=numCls, activation='softmax')(x)
     retModel = Model(dataInput, x)
     return retModel
 
@@ -151,7 +163,14 @@ def train_generator(dataX, dataY, batchSize=32, isRandomize=False, meanShift=0.1
             if isRandomize:
                 rndShiftMean = meanShift*_getRand()
                 rndShiftStd  = meaStd*_getRand()
-                retX[ii] = (dataX[idx] - rndShiftMean)/(1.0 + rndShiftStd)
+                tmp = (dataX[idx] - rndShiftMean)/(1.0 + rndShiftStd)
+                if K.image_dim_ordering()=='th':
+                    tmp = tmp[0].transpose( np.random.permutation((0,1,2)) )
+                    tmp = tmp.reshape([1] + list(tmp.shape))
+                else:
+                    tmp = tmp[:,:,:,0].transpose(np.random.permutation((0, 1, 2)))
+                    tmp = tmp.reshape(list(tmp.shape) + [1])
+                retX[ii] = tmp.copy()
             else:
                 retX[ii] = dataX[idx]
             retY[ii] = dataY[idx]
@@ -175,10 +194,9 @@ if __name__ == '__main__':
     #
     if not os.path.isfile(pathModel):
         model = buildModel_SimpleCNN3D(inpShape=valX.shape[1:],
-                                       numCls=numCls,
-                                       numHiddenDense=-1)
-        # popt = kopt.Adam(lr=0.00001)
-        popt = 'adam'
+                                       numCls=numCls)
+        popt = kopt.Adam(lr=0.00001)
+        # popt = 'adam'
         model.compile(optimizer=popt,
                       loss='categorical_crossentropy',
                       # loss='binary_crossentropy',
@@ -192,14 +210,14 @@ if __name__ == '__main__':
     # plt.show()
     model.summary()
     batchSize = 8
-    numEpochs = 100
+    numEpochs = 300
     numIterPerEpoch = numTrn/(numCls*batchSize)
-    model.fit(trnX, trnY, epochs=10, validation_data=(valX, valY))
-    # model.fit_generator(
-    #     generator=train_generator(dataX=trnX, dataY=trnY, batchSize=16, isRandomize=False),
-    #     steps_per_epoch=numIterPerEpoch,
-    #     epochs=numEpochs, validation_data=(valX, valY),
-    #     callbacks=[
-    #         kall.ModelCheckpoint(pathModel, verbose=True, save_best_only=True),
-    #         kall.CSVLogger(pathLog, append=True)
-    #     ])
+    # model.fit(trnX, trnY, nb_epoch=10, validation_data=(valX, valY))
+    model.fit_generator(
+        generator=train_generator(dataX=trnX, dataY=trnY, batchSize=batchSize, isRandomize=True),
+        samples_per_epoch=numIterPerEpoch,
+        nb_epoch=numEpochs, validation_data=(valX, valY),
+        callbacks=[
+            kall.ModelCheckpoint(pathModel, verbose=True, save_best_only=True),
+            kall.CSVLogger(pathLog, append=True)
+        ])
